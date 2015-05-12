@@ -60,7 +60,7 @@ module.exports = function(router) {
   });
 
   // U: update user
-  router.patch('/users/:id', function(req, res) {
+  router.put('/users/:id', function(req, res) {
 
     sql.sync()
       .then(function() {

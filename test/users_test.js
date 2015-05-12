@@ -84,11 +84,11 @@ describe('Users', function() {
       });
     });
 
-    describe('PATCH', function() {
+    describe('PUT', function() {
       var response;
       before(function(done) {
         chai.request('localhost:3000')
-          .patch('/api/users/' + newUser.id)
+          .put('/api/users/' + newUser.id)
           .send({email: 'joe@newemail.com'})
           .end(function(err, res) {
             response = res.body;
@@ -158,10 +158,10 @@ describe('Users', function() {
           });
       });
     });
-    describe('PATCH', function() {
+    describe('PUT', function() {
       it('returns the error message in the body', function(done) {
         chai.request('localhost:3000')
-          .patch('/api/users/123456789wrong')
+          .put('/api/users/123456789wrong')
           .send({username: 'thiswillfail'})
           .end(function(err, res) {
             expect(err).to.eq(null);
