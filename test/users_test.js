@@ -5,26 +5,47 @@ var chaiHttp = require('chai-http');      // needed for requests
 var expect = chai.expect;
 chai.use(chaiHttp);                       // tell chai to use chai-http
 var User = require('../models/User.js');  // bring in model constructor to test
-
-// Point to db via
+var Sql = require('sequelize');
+var sql = new Sql('w3_psql_simple','w3_psql_simple', 'foobar', {dialect: 'postgres'});
 
 // Start server for testing
 require('../server.js');
 
 describe('Users', function() {
   describe('with existing user', function() {
-    // Setup Database before each describe block
+    // Setup CLEAN Database before each describe block
     var newUser;
     before(function(done) {
-      newUser = User.create({username: 'joe', email: 'joe@joe.com', passtoken: '1234'}, function(err, newUser) {
-        done();
-      });
+      sql.sync({force: true})
+        .then(function() {
+          User.create({username: 'joe', email: 'joe@joe.com'})
+          .then(function(data) {
+            newUser = data.dataValues;
+            done();
+          })
+          .error(function(err){
+            console.log(err);
+            done();
+          });
+        });
     });
-    // Drop database after each run
+
     after(function(done) {
-      mongoose.connection.db.dropDatabase(function() {
-        done();
-      });
+      var userIds;
+      sql.sync({force: true})
+        .then(function(){
+          User.findAll()
+            .then(function(data) {
+              userIds = [];
+              data.forEach(function(elem, index, origArr) {
+                userIds.push(elem.id);
+                if (data.length -1 === index) {
+                  User.destroy({where: {id: userIds}});
+                  done();
+                }
+              });
+            });
+        });
     });
 
     describe('GET for a specific user', function() {
@@ -33,7 +54,8 @@ describe('Users', function() {
         chai.request('localhost:3000')
           .get('/api/users/joe')
           .end(function(err, res) {
-            joe = res.body[0];
+            joe = res.body;
+            console.log("RES.BODY IS: ", res.body);
             done();
           });
       });
@@ -46,29 +68,27 @@ describe('Users', function() {
       it('returns the user\'s  email', function() {
         expect(joe.email).to.eql('joe@joe.com');
       });
-      it('returns the user\'s  passtoken', function() {
-        expect(joe.passtoken).to.eql('1234');
-      });
     });
 
     describe('POST', function() {
-      it('does NOT create a duplicate username', function(done) {
+      it('creates a new user', function(done) {
         chai.request('localhost:3000')
           .post('/api/users')
-          .send({username: 'joe'})
+          .send({username: 'newbie', email: 'new@new.com'})
           .end(function(err, res) {
-            expect(err).to.eql(null);
-            expect(res.body.msg).to.eql('username already exists - please try a different username');
+            expect(err).to.eq(null);
+            expect(res.body.username).to.eq('newbie');
+            expect(res.body.email).to.eq('new@new.com');
             done();
           });
       });
     });
 
-    describe('PUT', function() {
+    describe('PATCH', function() {
       var response;
       before(function(done) {
         chai.request('localhost:3000')
-          .put('/api/users/' + newUser.emitted.fulfill[0]._id)
+          .patch('/api/users/' + newUser.id)
           .send({email: 'joe@newemail.com'})
           .end(function(err, res) {
             response = res.body;
@@ -76,7 +96,7 @@ describe('Users', function() {
           });
       });
       it('updates the user', function() {
-        expect(response.msg).to.eq('user updated');
+        expect(response).to.eq('success');
       });
     });
 
@@ -84,30 +104,49 @@ describe('Users', function() {
       var response;
       before(function(done) {
         chai.request('localhost:3000')
-          .del('/api/users/' + newUser.emitted.fulfill[0]._id)
+          .del('/api/users/' + newUser.id)
           .end(function(err, res) {
             response = res.body;
             done();
           });
       });
       // Having my POST test above triggers this to be wrong... how fix?
-      it('deletes the user', function(done) {
+      it('deletes a user', function(done) {
         chai.request('localhost:3000')
-          .get('/api/users/joe')
+          .get('/api/users')
           .end(function(err, res) {
             expect(err).to.eql(null);
-            expect(res.body).to.eql([]);
+            expect(res.body.length).to.eql(1);
             done();
           });
       });
       it('responds with the message "user removed"', function() {
-        expect(response.msg).to.eql('user removed');
+        expect(response).to.eq('success');
       });
     });
   });
 
 
   describe('with NON-existing user', function() {
+    before(function(done) {
+      var userIds;
+      sql.sync({force: true})
+        .then(function(){
+          User.findAll()
+            .then(function(data) {
+              if (data.length === 0) done();
+              userIds = [];
+              data.forEach(function(elem, index, origArr) {
+                userIds.push(elem.id);
+                if (data.length -1 === index) {
+                  User.destroy({where: {id: userIds}});
+                  done();
+                }
+              });
+            });
+        });
+    });
+
     describe('GET', function() {
       it('returns a blank array', function(done) {
         chai.request('localhost:3000')
@@ -119,41 +158,14 @@ describe('Users', function() {
           });
       });
     });
-    describe('POST', function() {
-      describe('with no username', function() {
-        it('does not create a user', function(done) {
-          chai.request('localhost:3000')
-            .post('/api/users')
-            .send({ username: '', email: 'fail@fail.com' })
-            .end(function(err, res) {
-              var user = User.find({}, function(err, docs) {
-                expect(err).to.eq(null);
-                expect(docs.length).to.eq(0);
-                done();
-              });
-            });
-        });
-        it('returns the validation error message in the body', function(done) {
-          chai.request('localhost:3000')
-            .post('/api/users')
-            .send({username: ''})
-            .end(function(err, res) {
-              expect(err).to.eq(null);
-              expect(res.body.msg).to.include('username');
-              expect(res.body.msg).to.include('is required');
-              done();
-            });
-        });
-      });
-    });
-    describe('PUT', function() {
+    describe('PATCH', function() {
       it('returns the error message in the body', function(done) {
         chai.request('localhost:3000')
-          .put('/api/users/123456789wrong')
+          .patch('/api/users/123456789wrong')
           .send({username: 'thiswillfail'})
           .end(function(err, res) {
             expect(err).to.eq(null);
-            expect(res.body.msg).to.eq('invalid user');
+            expect(res.body.msg).to.eq('internal server error');
             done();
           });
       });
@@ -164,7 +176,7 @@ describe('Users', function() {
           .del('/api/users/123456789wrong')
           .end(function(err, res) {
             expect(err).to.eq(null);
-            expect(res.body.msg).to.eq('invalid user');
+            expect(res.body.msg).to.eq('internal server error');
             done();
           });
       });

@@ -10,7 +10,6 @@ var bodyparser = require('body-parser');
 module.exports = function(router) {
   router.use(bodyparser.json());  // api will receive JSON
 
-
   // R: get user (see user info)
   router.get('/users/:username', function(req, res) {
     var username = req.params.username;  // // BODY EMPTY, PARAMS HAS: username
@@ -18,8 +17,7 @@ module.exports = function(router) {
       .then(function(){
         User.find({where: {username: username} })
         .then(function(data) {  // lookup in db
-          console.log(data);
-          res.json(data);
+          res.json(data.dataValues);
         })
         .error(function(err) {
           console.log(err);
@@ -68,7 +66,7 @@ module.exports = function(router) {
       .then(function() {
         User.update(req.body, {where: {id: req.params.id}})
         .then(function(data) {
-          res.json(data);   // return data is the id
+          res.json((typeof data[0] === 'number') ? 'success' : 'unsuccessful');   // return data is the id
         })
         .error(function(err) {
           console.log(err);
@@ -83,7 +81,7 @@ module.exports = function(router) {
       .then(function() {
         User.destroy({where: {id: [req.params.id]}})  // MUST pass array
         .then(function(data) {
-          res.json(data);
+          res.json((typeof data === 'number') ? 'success' : 'unsuccessful');
         })
         .error(function(err) {
           console.log(err);
