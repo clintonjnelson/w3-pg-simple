@@ -1,6 +1,9 @@
 'use strict';
 
 var User = require('../models/User'); // Require in model
+// can also bring in the models folder and do:  models.User.create...
+var Sql = require('sequelize');
+var sql = new Sql('w3_psql_simple', 'w3_psql_simple', 'foobar', { dialect: 'postgres' });
 var bodyparser = require('body-parser');
 
 // setup function to export; takes express router
@@ -11,72 +14,82 @@ module.exports = function(router) {
   // R: get user (see user info)
   router.get('/users/:username', function(req, res) {
     var username = req.params.username;  // // BODY EMPTY, PARAMS HAS: username
-    User.find({'username': username}, function(err, data) {  // lookup in db
-      if (err) {  // handle error - conole it, vague message user
-        console.log(err);
-        return res.status(500).json( {msg: 'internal server error'} );
-      }
+    sql.sync()
+      .then(function(){
+        User.find({where: {username: username} })
+        .then(function(data) {  // lookup in db
+          console.log(data);
+          res.json(data);
+        })
+        .error(function(err) {
+          console.log(err);
+          res.status(500).json({msg: 'internal server error'});
+        });
+      });
+      // look in user model
+  });
 
-      res.json(data);  // send raw data to user
-    });  // look in user model
+  // R: get ALL users
+  router.get('/users', function(req, res) {
+    sql.sync()
+      .then(function() {
+        User.findAll()
+        .then(function(data) {  // after the findAll, if succes, pass along data
+          res.json(data);
+        })
+        .error(function(err) {  // after findAll, if err, run this
+          console.log(err);
+          res.status(500).json({msg: 'internal server error'});
+        });
+      });
   });
 
   // C: create user
   router.post('/users', function(req, res) {
     // get passed info from req.body & use mongoose to crate a new 'Thing'
-    var newUser = new User(req.body);  // assumes formatting of body is proper
-    newUser.save(function(err, data) {  //
-      // Validations
-      switch(true) {
-        case !!(err && err.code === 11000):
-          return res.json({msg: 'username already exists - please try a different username'});
-        case !!(err && err.errors.username):
-          return res.json( {msg: err.errors.username.message.replace("Path", '')});
-        case !!err:
-          console.log("INTERNAL SERVER ERROR IS:", err.errors.username.message);
-          return res.status(500).json({msg: 'internal server error'});
-      }
-
-      res.json(data);
-    });
+    // var newUser = new User(req.body);  // assumes formatting of body is proper
+    sql.sync()  // first sync the server
+      .then(function() {
+        User.create(req.body)   // don't need to specify contents
+        .then(function(data) {
+          res.json(data);
+        })
+        .error(function(err){
+          console.log(err);
+          res.status(500).json({msg: 'internal server error'});
+        });
+      });
   });
 
   // U: update user
-  router.put('/users/:id', function(req, res) {
-    var updatedUser = req.body;
-    delete updatedUser._id;   // pass option for props to ignore in update
+  router.patch('/users/:id', function(req, res) {
 
-    User.update({'_id': req.params.id}, updatedUser, function(err, data) {
-      switch(true) {
-        case !!(err && err.code === 11000):
-          return res.json({msg: 'username already exists - please try a different username'});
-        case !!(err && err.username):
-          return res.json( {msg: err.username.message.replace("Path", '')} );
-        case !!(err && err.name === 'CastError'):
-          return res.json( {msg: 'invalid user'} );
-        case !!err:
+    sql.sync()
+      .then(function() {
+        User.update(req.body, {where: {id: req.params.id}})
+        .then(function(data) {
+          res.json(data);   // return data is the id
+        })
+        .error(function(err) {
           console.log(err);
-          return res.status(500).json({msg: 'internal server error'});
-      }
-
-      res.json({msg: 'user updated'});
-    });
+          res.status(500).json({msg: 'internal server error'});
+        });
+      });
   });
 
   // D: destroy user
   router.delete('/users/:id', function(req, res) {
-    User.remove({'_id': req.params.id}, function(err, data) {
-      switch(true) {
-        case !!(err && err.name === 'CastError'):
-          return res.json( {msg: 'invalid user'} );
-        case !!err:
+    sql.sync()
+      .then(function() {
+        User.destroy({where: {id: [req.params.id]}})  // MUST pass array
+        .then(function(data) {
+          res.json(data);
+        })
+        .error(function(err) {
           console.log(err);
-          return res.status(500).json({msg: 'internal server error'});
-      }
-
-      // To get a report back on outcome, check data.result.n
-      res.json({msg: (data.result.n ? 'user removed' : 'user could not be removed')});  //returns 0 or more
-    });
+          res.status(500).json({msg: 'internal server error'});
+        });
+      });
   });
 };
 

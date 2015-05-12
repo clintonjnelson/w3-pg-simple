@@ -1,12 +1,11 @@
 'use strict';
 
 var express = require('express');
-var mongoose = require('mongoose');
-var app = express();                    // make app/server via express
+var app = express();                  // make app/server via express
 var usersRoutes = express.Router();     // make router
 
 // Setup db & host to listen
-mongoose.connect(process.env.MONGOLAB_URI || 'mongodb://localhost/users_development');
+// mongoose.connect(process.env.MONGOLAB_URI || 'mongodb://localhost/users_development');
 
 // Require in routes from users_routes & pass usersRouter to populate
 require('./routes/users_routes')(usersRoutes);

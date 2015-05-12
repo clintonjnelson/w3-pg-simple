@@ -4,11 +4,9 @@ var chai = require('chai');               // needed for should/expect assertions
 var chaiHttp = require('chai-http');      // needed for requests
 var expect = chai.expect;
 chai.use(chaiHttp);                       // tell chai to use chai-http
-var mongoose = require('mongoose');       // needed to working with server
 var User = require('../models/User.js');  // bring in model constructor to test
 
 // Point to db via
-process.env.MONGOLAB_URI = 'mongodb://localhost/user_development';
 
 // Start server for testing
 require('../server.js');
